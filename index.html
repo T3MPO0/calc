@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Калькулятор</title>
+<style>
+  body { font-family: sans-serif; background: #f2f4f8; margin: 0; padding: 16px; }
+  .card { max-width: 420px; margin: 40px auto; background: white; padding: 24px;
+          border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+  h1 { margin-top: 0; font-size: 24px; }
+  form { display: flex; gap: 8px; flex-wrap: wrap; }
+  input, select, button { font-size: 18px; padding: 8px; border: 1px solid #ccc; border-radius: 6px; }
+  input { width: 90px; }
+  button { background: #3b6ef5; color: white; border: none; cursor: pointer; }
+  button.gray { background: #888; margin-top: 8px; }
+  .result { margin-top: 16px; font-size: 22px; color: #1a7f37; }
+  .error { margin-top: 16px; font-size: 18px; color: #c62828; }
+  h2 { font-size: 18px; margin-top: 24px; }
+  ul { padding-left: 20px; }
+  .empty { color: #888; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Калькулятор</h1>
+  <form id="form">
+    <input id="a" placeholder="число" required>
+    <select id="op"></select>
+    <input id="b" placeholder="число" required>
+    <button type="submit">=</button>
+  </form>
+  <div id="message"></div>
+  <h2>История</h2>
+  <div id="history"></div>
+  <button class="gray" id="clear">Очистить историю</button>
+</div>
+
+<script>
+const API = "http://localhost:8000";
+
+async function loadOperations() {
+  const response = await fetch(API + "/api/operations");
+  const operations = await response.json();
+  let options = "";
+  for (const operation of operations) {
+    options += `<option value="${operation.symbol}">${operation.symbol} (${operation.name})</option>`;
+  }
+  document.getElementById("op").innerHTML = options;
+}
+
+async function loadHistory() {
+  const response = await fetch(API + "/api/history");
+  const records = await response.json();
+  if (records.length === 0) {
+    document.getElementById("history").innerHTML = "<p class='empty'>Пока пусто</p>";
+    return;
+  }
+  let items = "";
+  for (const record of records) {
+    items += `<li>${record}</li>`;
+  }
+  document.getElementById("history").innerHTML = `<ul>${items}</ul>`;
+}
+
+function showMessage(text, isError) {
+  const message = document.getElementById("message");
+  message.textContent = text;
+  message.className = isError ? "error" : "result";
+}
+
+async function calculate(event) {
+  event.preventDefault();
+  const a = Number(document.getElementById("a").value);
+  const b = Number(document.getElementById("b").value);
+  const op = document.getElementById("op").value;
+
+  if (isNaN(a) || isNaN(b)) {
+    showMessage("Введите правильные числа", true);
+    return;
+  }
+
+  const response = await fetch(API + "/api/calculate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ a: a, op: op, b: b })
+  });
+  const data = await response.json();
+
+  if (response.ok) {
+    showMessage("Результат: " + data.result, false);
+  } else {
+    showMessage(data.detail, true);
+  }
+  loadHistory();
+}
+
+async function clearHistory() {
+  await fetch(API + "/api/history", { method: "DELETE" });
+  loadHistory();
+}
+
+document.getElementById("form").addEventListener("submit", calculate);
+document.getElementById("clear").addEventListener("click", clearHistory);
+loadOperations().catch(function () {
+  showMessage("Сервер не отвечает. Запустите python3 toi.py", true);
+});
+loadHistory();
+</script>
+</body>
+</html>
