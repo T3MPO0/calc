@@ -1,3 +1,7 @@
+import os
+import sqlite3
+
+
 class Operation:
     def __init__(self, symbol, name):
         self.symbol = symbol
@@ -42,20 +46,27 @@ class Division(Operation):
 
 
 class History:
-    def __init__(self, max_size=10):
-        self.__records = []
+    def __init__(self, max_size=10, db_path="data/history.db"):
         self.max_size = max_size
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        self.__connection = sqlite3.connect(db_path, check_same_thread=False)
+        self.__connection.execute(
+            "CREATE TABLE IF NOT EXISTS history (id INTEGER PRIMARY KEY AUTOINCREMENT, text TEXT)"
+        )
 
     def add(self, text):
-        self.__records.insert(0, text)
-        if len(self.__records) > self.max_size:
-            self.__records.pop()
+        self.__connection.execute("INSERT INTO history (text) VALUES (?)", (text,))
+        self.__connection.commit()
 
     def get_all(self):
-        return self.__records
+        rows = self.__connection.execute(
+            "SELECT text FROM history ORDER BY id DESC LIMIT ?", (self.max_size,)
+        ).fetchall()
+        return [row[0] for row in rows]
 
     def clear(self):
-        self.__records = []
+        self.__connection.execute("DELETE FROM history")
+        self.__connection.commit()
 
 
 class Calculator:
